@@ -932,3 +932,103 @@ class MediaMixin:
         A boolean value
         """
         return self.media_pin(media_pk, True)
+
+    def user_archives(self, amount: int = 0, sleep: int = 0) -> List[Media]:
+        """
+        Get the logged in user's archived media
+
+        Parameters
+        ----------
+        amount: int, optional
+            Maximum number of media to return, default is 0 (all medias)
+        sleep: int, optional
+            Timeout between page iterations
+
+        Returns
+        -------
+        List[Media]
+            A list of objects of Media
+        """
+        amount = int(amount)
+        sleep = int(sleep)
+        medias = self.user_archives_v1(amount)
+        return medias
+
+    def user_archives_v1(self, amount: int = 0) -> List[Media]:
+        """
+        Get a user's archives by Private Mobile API
+
+        Parameters
+        ----------
+        amount: int, optional
+            Maximum number of media to return, default is 0 (all medias)
+
+        Returns
+        -------
+        List[Media]
+            A list of objects of Media
+        """
+        amount = int(amount)
+        medias = []
+        next_max_id = ""
+        while True:
+            try:
+                medias_page, next_max_id = self.user_archives_paginated_v1(
+                    amount,
+                    end_cursor=next_max_id
+                )
+            except Exception as e:
+                self.logger.exception(e)
+                break
+            medias.extend(medias_page)
+            if not self.last_json.get("more_available"):
+                break
+            if amount and len(medias) >= amount:
+                break
+            next_max_id = self.last_json.get("next_max_id", "")
+        if amount:
+            medias = medias[:amount]
+        return medias
+
+    def user_archives_paginated_v1(self, amount: int = 0, end_cursor: str = "") -> Tuple[List[Media], str]:
+        """
+        Get a page of user's archives by Private Mobile API
+
+        Parameters
+        ----------
+        amount: int, optional
+            Maximum number of media to return, default is 0 (all medias)
+        end_cursor: str, optional
+            Cursor value to start at, obtained from previous call to this method
+
+        Returns
+        -------
+        Tuple[List[Media], str]
+            A tuple containing a list of medias and the next end_cursor value
+        """
+        amount = int(amount)
+        medias = []
+        next_max_id = end_cursor
+        min_timestamp = None
+        try:
+            items = self.private_request(
+                f"feed/only_me_feed/",
+                params={
+                    "max_id": next_max_id,
+                    "count": 1000,
+                    "min_timestamp": min_timestamp,
+                    "rank_token": self.rank_token,
+                    "ranked_content": "true",
+                },
+            )["items"]
+        except Exception as e:
+            self.logger.exception(e)
+            return [], None
+        medias.extend(items)
+        next_max_id = self.last_json.get("next_max_id", "")
+        if amount:
+            medias = medias[:amount]
+        return (
+            [extract_media_v1(media) for media in medias],
+            next_max_id
+        )
