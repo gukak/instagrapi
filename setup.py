@@ -29,7 +29,7 @@ requirements = [
 # ]
 
 setup(
-    name='instagrapi',
+    name='instagrapi-domfox',
     version='1.16.29',
     author='Mikhail Andreev',
     author_email='x11org@gmail.com',
